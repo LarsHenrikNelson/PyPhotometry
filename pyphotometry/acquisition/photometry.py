@@ -161,6 +161,7 @@ class AcqManager:
         self.settings = {}
 
     def retrieve_raw_data(self, data_id):
+        print(data_id)
         column = self.column_dict[data_id]
         if data_id not in self.raw_data:
             if self.filename.suffix == ".xls" or self.filename.suffix == ".xlsx":
