@@ -45,7 +45,8 @@ def double_exp(signal, timestamp):
         bounds=bounds,
         maxfev=1000,
     )
-    rcamp_fit = db_exp_decay(timestamp, *fit_params)
+    fit = db_exp_decay(timestamp, *fit_params)
+    return fit
 
 
 def WhittakerSmooth(x, w, lambda_, differences=1):
