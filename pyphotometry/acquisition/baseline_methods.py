@@ -1,10 +1,51 @@
-#%%
 import numpy as np
-from scipy.sparse import csc_matrix, eye, diags
-from scipy.sparse.linalg import spsolve
-from scipy import sparse
-from scipy.sparse import linalg
-from numpy.linalg import norm
+from scipy import optimize, sparse
+
+
+def db_exp_decay(
+    x_array,
+    const,
+    amp_slow,
+    tau_slow,
+    amp_fast,
+    tau_fast,
+):
+    """Double exponential decay equation with constant offset. Tau_slow is just
+    tau_fast*tau_multiplier
+
+    Args:
+        x_array (_type_): _description_
+        const (_type_): _description_
+        amp_fast (_type_): _description_
+        tau_fast (_type_): _description_
+        amp_slow (_type_): _description_
+        tau_slow (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    y = (
+        const
+        + (amp_slow * np.exp((-x_array) / tau_slow))
+        + (amp_fast * np.exp((-x_array) / tau_fast))
+    )
+    return y
+
+
+def double_exp(signal, timestamp):
+    max_sig = np.max(signal)
+    # const, amp_slow, tau_slow, amp_fast, tau_fast
+    inital_params = [max_sig / 2, max_sig / 4, 3600, max_sig / 4, 360]
+    bounds = ([0, 0, 600, 0, 0], [max_sig, max_sig, 36000, max_sig, 3600])
+    fit_params, parm_cov = optimize.curve_fit(
+        db_exp_decay,
+        timestamp,
+        signal,
+        p0=inital_params,
+        bounds=bounds,
+        maxfev=1000,
+    )
+    rcamp_fit = db_exp_decay(timestamp, *fit_params)
 
 
 def WhittakerSmooth(x, w, lambda_, differences=1):
@@ -23,14 +64,14 @@ def WhittakerSmooth(x, w, lambda_, differences=1):
     X = np.matrix(x)
     m = X.size
     i = np.arange(0, m)
-    E = eye(m, format="csc")
+    E = sparse.eye(m, format="csc")
     D = (
         E[1:] - E[:-1]
     )  # numpy.diff() does not work with sparse matrix. This is a workaround.
-    W = diags(w, 0, shape=(m, m))
-    A = csc_matrix(W + (lambda_ * D.T * D))
-    B = csc_matrix(W * X.T)
-    background = spsolve(A, B)
+    W = sparse.diags(w, 0, shape=(m, m))
+    A = sparse.csc_matrix(W + (lambda_ * D.T * D))
+    B = sparse.csc_matrix(W * X.T)
+    background = sparse.linalg.spsolve(A, B)
     return np.array(background)
 
 
@@ -81,7 +122,7 @@ def baseline_arPLS(y, ratio=1e-6, lam=100, niter=10, full_output=False):
     count = 0
 
     while crit > ratio:
-        z = linalg.spsolve(W + H, W * y)
+        z = sparse.linalg.spsolve(W + H, W * y)
         d = y - z
         dn = d[d < 0]
 
@@ -90,7 +131,7 @@ def baseline_arPLS(y, ratio=1e-6, lam=100, niter=10, full_output=False):
 
         w_new = 1 / (1 + np.exp(2 * (d - (2 * s - m)) / s))
 
-        crit = norm(w_new - w) / norm(w)
+        crit = np.linalg.norm(w_new - w) / np.linalg.norm(w)
 
         w = w_new
         W.setdiag(w)  # Do not create a new matrix, just update diagonal values
@@ -108,30 +149,30 @@ def baseline_arPLS(y, ratio=1e-6, lam=100, niter=10, full_output=False):
         return z
 
 
-#%%
-from acquisition.photometry import ExpManager
+# %%
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
+from acquisition.photometry import ExpManager
 
-#%%
+# %%
 pc_path = r"D:/Photometry/2022_07_07_photometry/1039085_N_Session5_PhotoData.csv"
 path = (
     r"/Volumes/Backup/Photometry/2022_07_07_photometry/1039085_N_Session5_PhotoData.csv"
 )
 
-#%%
+# %%
 exp = ExpManager()
 exp.load_data(pc_path)
 
 # %%
 y = exp.get_raw_data("1039085_N_Session5_PhotoData", "RawF_560_F1").to_numpy()
 
-#%%
+# %%
 baseline = airPLS(y, lambda_=200000)
 plt.plot(y)
 plt.plot(baseline)
 
-#%%
+# %%
 baseline = baseline_arPLS(y, ratio=1e-15)
 plt.plot(y)
 plt.plot(baseline)
