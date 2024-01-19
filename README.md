@@ -1,2 +1,2 @@
 # PyPhotometry
-Photometry analysis program
+Photometry analysis program. This program is not complete but can be used to analyze photometry data either by using the interface or through a python script. There currently not documentation available but, there are several methods that are available to baseline photometry signals. This program probably will not be updated since my time is limited and I ended up using other techniques to get at the same question.

@@ -1,7 +1,7 @@
 from collections import namedtuple
-import inspect
 from itertools import combinations
 from pathlib import PurePath, Path
+from typing import Union, Literal
 
 import numpy as np
 from numpy.polynomial import Polynomial
@@ -36,7 +36,7 @@ class ExpManager:
         self.filenames = []
         self.new_data = []
 
-    def load_data(self, filenames):
+    def load_data(self, filenames: Union[str, list, PurePath, Path]):
         if isinstance(filenames, str):
             files = [filenames]
             self.parse_files(files)
@@ -46,7 +46,7 @@ class ExpManager:
         else:
             self.new_data = []
 
-    def parse_files(self, files):
+    def parse_files(self, files: list):
         """
         This function creates the acquisition objects. There should be
         a separate aquisition object for each recording session for each
@@ -84,33 +84,41 @@ class ExpManager:
     def reset_new_data(self):
         self.new_data = []
 
-    def get_raw_data(self, acq_manager, data_id):
+    def get_raw_data(self, acq_manager: str, data_id: str) -> np.ndarray:
         return self.exp_dict.get(acq_manager).retrieve_raw_data(data_id)
 
-    def get_acq_list(self, acq_manager):
+    def get_acq_list(self, acq_manager: str) -> list[str]:
         return list(self.exp_dict[acq_manager].column_dict.keys())
 
-    def get_exps(self):
+    def get_exps(self) -> list[str]:
         return list(self.exp_dict.keys())
 
     def analyze_acq(
         self,
-        exp,
-        array,
-        analysis,
-        sec_array,
-        time_array,
-        smooth,
-        find_peaks,
-        find_tau,
-        peak_threshold,
-        peak_direction,
-        z_score,
-        z_threshold,
-        filter_array,
-        filter_type,
-        input_1,
-        input_2,
+        exp: str,
+        array: str,
+        analysis: Literal[
+            "quantile",
+            "nat_spline",
+            "min_peak",
+            "plexon",
+            "plexon_spline",
+            "lsq_spline",
+            "isobestic",
+        ],
+        sec_array: Union[str, None],
+        time_array: Union[str, None],
+        smooth: tuple[int],
+        find_peaks: bool,
+        find_tau: bool,
+        peak_threshold: float,
+        peak_direction: str,
+        z_score: bool,
+        z_threshold: float,
+        filter_array: bool,
+        filter_type: Literal["savgol", "ewma"],
+        input_1: int,
+        input_2: Union[int, float],
     ):
         self.exp_dict.get(exp).analyze(
             analysis,
@@ -197,31 +205,41 @@ class AcqManager:
 
     def analyze(
         self,
-        analysis,
-        array,
-        sec_array,
-        time_array,
-        smooth,
-        find_peaks,
-        find_tau,
-        peak_threshold,
-        peak_direction,
-        z_score,
-        z_threshold,
-        filter_array,
-        filter_type,
-        input_1,
-        input_2,
+        analysis: Literal[
+            "quantile",
+            "nat_spline",
+            "min_peak",
+            "plexon",
+            "plexon_spline",
+            "lsq_spline",
+            "isobestic",
+        ],
+        array: str,
+        sec_array: str,
+        time_array: str,
+        smooth: tuple[int],
+        find_peaks: bool,
+        find_tau: bool,
+        peak_threshold: float,
+        peak_direction: Literal["positive", "negative"],
+        z_score: bool,
+        z_threshold: Union[float, int],
+        filter_array: bool,
+        filter_type: Literal["savgol", "ewma"],
+        input_1: int,
+        input_2: Union[int, float],
     ):
         acq_settings = locals()
         del acq_settings["self"]
         self.settings[array] = acq_settings
         if sec_array != "None":
             sec_array = self.retrieve_raw_data(sec_array)
-        if time_array not in self.raw_data.keys():
-            self.raw_data["time_array"] = self.retrieve_raw_data(time_array)
         if array not in self.raw_data.keys():
             self.raw_data[array] = self.retrieve_raw_data(array)
+        if time_array not in self.raw_data.keys() and time_array != "None":
+            self.raw_data["time_array"] = self.retrieve_raw_data(time_array)
+        else:
+            self.raw_data["time_array"] = np.arange(len(self.raw_data[array]))
         acq_components = Acquisition(
             analysis,
             self.raw_data[array],
@@ -264,7 +282,7 @@ class AcqManager:
     def save_as(self, save_filename):
         self.save_settings(self.settings, save_filename)
 
-    def load_settings(self, path=None):
+    def load_settings(self, path: Union[str, None, PurePath, Path] = None) -> dict:
         if path is None:
             file_name = Path().glob("*.yaml")[0]
         elif PurePath(path).suffix == ".yaml":
@@ -276,11 +294,11 @@ class AcqManager:
             yaml_file = yaml.safe_load(file)
         return yaml_file
 
-    def save_settings(dictionary, save_filename):
+    def save_settings(dictionary: dict, save_filename: Union[str, PurePath, Path]):
         with open(f"{save_filename}.yaml", "w") as file:
             yaml.dump(dictionary, file)
 
-    def save_data(self, save_filename):
+    def save_data(self, save_filename: Union[str, PurePath, Path]):
         pass
 
 
@@ -300,21 +318,21 @@ class Acquisition:
 
     def __new__(
         cls,
-        analysis_method,
-        array,
-        sec_array,
-        time_array,
-        smooth,
-        analyze_peaks,
-        find_tau,
-        peak_direction,
-        threshold,
-        z_score,
-        z_threshold,
-        filter_array,
-        filter_type,
-        input_1,
-        input_2,
+        analysis_method: str,
+        array: str,
+        sec_array: str,
+        time_array: str,
+        smooth: tuple,
+        analyze_peaks: bool,
+        find_tau: bool,
+        peak_direction: str,
+        threshold: Union[int, float],
+        z_score: bool,
+        z_threshold: Union[int, float],
+        filter_array: bool,
+        filter_type: Literal["savgol", "ewma"],
+        input_1: int,
+        input_2: Union[int, float],
     ):
         subclass = cls._registry[analysis_method]
         obj = object.__new__(subclass)
@@ -342,10 +360,14 @@ class Acquisition:
         self.df_f = ((self.array - self.baseline) / self.baseline) * 100
 
     def z_score_df_f(self):
+        if self.z_threshold > 10:
+            min_periods = 10
+        else:
+            min_periods = self.z_threshold
         if self.z_score:
             std_array = (
                 pd.Series(self.df_f)
-                .rolling(self.z_threshold, min_periods=10)
+                .rolling(self.z_threshold, min_periods=min_periods)
                 .std()
                 .fillna(method="bfill")
             ).to_numpy()
@@ -476,26 +498,26 @@ class Quantile(Acquisition, analysis_method="quantile"):
         return comps
 
 
-class CubicSpline(Acquisition, analysis_method="cubic_spline"):
-    def analyze(self):
-        spl = scp.interpolate.UnivariateSpline(
-            self.time_array, self.array, s=self.smooth
-        )
-        self.baseline = spl(self.sec_array)
-        self.deltaf_f()
-        if self.filter_array == "df_f":
-            self.df_f = self.filter_array_func(self.df_f)
-        self.z_score_df_f()
-        if self.filter_array == "z_array":
-            self.z_array = self.filter_array_func(self.z_array)
-        self.find_peaks()
-        comps = AnalyzedComps(
-            self.df_f,
-            self.baseline,
-            self.z_array,
-            self.peaks_x,
-        )
-        return comps
+# class CubicSpline(Acquisition, analysis_method="cubic_spline"):
+#     def analyze(self):
+#         spl = scp.interpolate.UnivariateSpline(
+#             self.time_array, self.array, s=self.smooth
+#         )
+#         self.baseline = spl(self.time_array)
+#         self.deltaf_f()
+#         if self.filter_array == "df_f":
+#             self.df_f = self.filter_array_func(self.df_f)
+#         self.z_score_df_f()
+#         if self.filter_array == "z_array":
+#             self.z_array = self.filter_array_func(self.z_array)
+#         self.find_peaks()
+#         comps = AnalyzedComps(
+#             self.df_f,
+#             self.baseline,
+#             self.z_array,
+#             self.peaks_x,
+#         )
+#         return comps
 
 
 class NatSpline(Acquisition, analysis_method="nat_spline"):
@@ -553,23 +575,22 @@ class MinPeak(Acquisition, analysis_method="min_peak"):
         return comps
 
 
-class Plexxon(Acquisition, analysis_method="plexxon"):
-    def roll_ave(self, y):
-        self.baseline = (
-            pd.Series(y).rolling(self.smooth[0], min_periods=1).mean().to_numpy()
+class Plexon(Acquisition, analysis_method="plexon"):
+    def roll_ave(self, array):
+        ave_array = (
+            pd.Series(array).rolling(self.smooth[0], min_periods=1).mean().to_numpy()
         )
+        return ave_array
 
-    def roll_min(self):
-        self.baseline = (
-            pd.Series(self.baseline)
-            .rolling(self.smooth[1], min_periods=1)
-            .mean()
-            .to_numpy()
+    def roll_min(self, array):
+        min_array = (
+            pd.Series(array).rolling(self.smooth[1], min_periods=1).min().to_numpy()
         )
+        return min_array
 
     def analyze(self):
-        self.roll_ave()
-        self.roll_min()
+        ave_array = self.roll_ave(self.array)
+        self.baseline = self.roll_min(ave_array)
         self.deltaf_f()
         if self.filter_array == "df_f":
             self.df_f = self.filter_array_func(self.df_f)
@@ -578,4 +599,99 @@ class Plexxon(Acquisition, analysis_method="plexxon"):
             self.z_array = self.filter_array_func(self.z_array)
         self.find_peaks()
         comps = AnalyzedComps(self.df_f, self.baseline, self.z_array, self.peaks_x)
+        return comps
+
+
+class PlexonSpline(Acquisition, analysis_method="plexon_spline"):
+    def roll_ave(self, array):
+        ave_array = (
+            pd.Series(array).rolling(self.smooth[0], min_periods=1).mean().to_numpy()
+        )
+        return ave_array
+
+    def roll_min(self, array):
+        min_array = (
+            pd.Series(array).rolling(self.smooth[1], min_periods=1).min().to_numpy()
+        )
+        return min_array
+
+    def analyze(self):
+        ave_array = self.roll_ave(self.array)
+        min_array = self.roll_min(ave_array)
+        if not isinstance(self.smooth[2], int):
+            knots = int(self.smooth[2])
+        else:
+            knots = self.smooth[2]
+        knots = np.linspace(0, self.array.size, num=knots + 2, dtype=int)[1:-2]
+        spl = scp.interpolate.LSQUnivariateSpline(
+            self.time_array, min_array, t=self.time_array[knots]
+        )
+        self.baseline = spl(self.time_array)
+        self.deltaf_f()
+        if self.filter_array == "df_f":
+            self.df_f = self.filter_array_func(self.df_f)
+        self.z_score_df_f()
+        if self.filter_array == "z_array":
+            self.z_array = self.filter_array_func(self.z_array)
+        self.find_peaks()
+        comps = AnalyzedComps(self.df_f, self.baseline, self.z_array, self.peaks_x)
+        return comps
+
+
+class LSQSpline(Acquisition, analysis_method="lsq_spline"):
+    def analyze(self):
+        if not isinstance(self.smooth, int):
+            self.smooth = int(self.smooth)
+        knots = np.linspace(0, self.array.size, num=self.smooth + 2, dtype=int)[1:-2]
+        spl = scp.interpolate.LSQUnivariateSpline(
+            self.time_array, self.array, t=self.time_array[knots]
+        )
+        self.baseline = spl(self.time_array)
+        self.deltaf_f()
+        if self.filter_array == "df_f":
+            self.df_f = self.filter_array_func(self.df_f)
+        self.z_score_df_f()
+        if self.filter_array == "z_array":
+            self.z_array = self.filter_array_func(self.z_array)
+        self.find_peaks()
+        comps = AnalyzedComps(
+            self.df_f,
+            self.baseline,
+            self.z_array,
+            self.peaks_x,
+        )
+        return comps
+
+
+class Isobestic(Acquisition, analysis_method="isobestic"):
+    def fit(self):
+        poly = Polynomial.fit(
+            self.sec_array,
+            self.array,
+            deg=5,
+            rcond=None,
+            full=False,
+            w=None,
+        )
+
+
+class LowessSmooth(Acquisition, analysis_method="lowess"):
+    def analyze(self):
+        lowess = sm.nonparametric.lowess
+        z = lowess(self.array, self.sec_array, frac=self.smooth)
+        self.baseline = z[:, 1]
+        self.deltaf_f()
+        if self.filter_array == "df_f":
+            self.df_f = self.filter_array_func(self.df_f)
+        self.z_score_df_f()
+        if self.filter_array == "z_array":
+            self.z_array = self.filter_array_func(self.z_array)
+        self.find_peaks()
+        comps = AnalyzedComps(
+            self.df_f,
+            self.baseline,
+            self.z_array,
+            self.peaks_x,
+        )
+
         return comps

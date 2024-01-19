@@ -221,11 +221,13 @@ class AnalysisWidget(QFrame):
             self.input2.setText("0.85")
 
     def analyze(self):
-        temp = self.smooth_box.toText().split(", ")
-        if len(temp) > 1:
-            smooth = (int(i) for i in temp)
-        else:
+        temp = self.smooth_box.toText().replace(" ", "").split(",")
+        if len(temp) == 1:
             smooth = int(temp[0])
+        elif len(temp) == 2:
+            smooth = (int(i) for i in temp)
+        elif len(temp) == 3:
+            smooth = (int(i) for i in temp)
         self.settings = Settings(
             self.sheet_label.text(),
             self.acq_label.text(),
